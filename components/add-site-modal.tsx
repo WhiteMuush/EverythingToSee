@@ -17,7 +17,7 @@ import { getCategoryColor } from "@/lib/utils"
 interface AddSiteModalProps {
   isOpen: boolean
   onClose: () => void
-  onAddSite: (site: Site) => void
+  onAddSite: (site: Omit<Site, "id">) => void
   initialCategory: Category | null
   editingSite: Site | null
 }
@@ -32,6 +32,7 @@ export default function AddSiteModal({ isOpen, onClose, onAddSite, initialCatego
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Update form data when editing a site
   useEffect(() => {
@@ -47,13 +48,6 @@ export default function AddSiteModal({ isOpen, onClose, onAddSite, initialCatego
       setFormData((prev) => ({ ...prev, category: initialCategory }))
     }
   }, [editingSite, initialCategory])
-
-  // Update category when initialCategory changes
-  useEffect(() => {
-    if (initialCategory) {
-      setFormData((prev) => ({ ...prev, category: initialCategory }))
-    }
-  }, [initialCategory])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -90,11 +84,16 @@ export default function AddSiteModal({ isOpen, onClose, onAddSite, initialCatego
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (validateForm()) {
-      onAddSite(formData)
+      setIsSubmitting(true)
+      try {
+        await onAddSite(formData)
+      } finally {
+        setIsSubmitting(false)
+      }
     }
   }
 
@@ -172,10 +171,10 @@ export default function AddSiteModal({ isOpen, onClose, onAddSite, initialCatego
                       </SelectTrigger>
                       <SelectContent className="bg-gray-800 border-gray-700">
                         <SelectItem value="Movies">Movies</SelectItem>
-                        <SelectItem value="Streaming">Streaming</SelectItem>
+                        <SelectItem value="TV Shows">TV Shows</SelectItem>
                         <SelectItem value="Anime">Anime</SelectItem>
                         <SelectItem value="Sports">Sports</SelectItem>
-                        <SelectItem value="Autres">Autres</SelectItem>
+                        <SelectItem value="News">News</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -215,12 +214,22 @@ export default function AddSiteModal({ isOpen, onClose, onAddSite, initialCatego
                     type="button"
                     variant="outline"
                     onClick={onClose}
+                    disabled={isSubmitting}
                     className="bg-gray-800 border-gray-700 hover:bg-gray-700"
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" className={cn("text-white", categoryColor.button)}>
-                    {editingSite ? "Save Changes" : "Add Site"}
+                  <Button type="submit" disabled={isSubmitting} className={cn("text-white", categoryColor.button)}>
+                    {isSubmitting ? (
+                      <>
+                        <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                        {editingSite ? "Saving..." : "Adding..."}
+                      </>
+                    ) : editingSite ? (
+                      "Save Changes"
+                    ) : (
+                      "Add Site"
+                    )}
                   </Button>
                 </div>
               </form>
