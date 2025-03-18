@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { updateSite, deleteSite } from "@/lib/kv"
+import { getStorage } from "@/lib/storage"
 
 // PUT handler - Update a site
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
@@ -7,7 +7,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const id = params.id
     const updatedSiteData = await request.json()
 
-    const site = await updateSite(id, updatedSiteData)
+    const storage = getStorage()
+    const site = await storage.updateSite(id, updatedSiteData)
 
     if (!site) {
       return NextResponse.json({ error: "Site not found" }, { status: 404 })
@@ -24,7 +25,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
   try {
     const id = params.id
-    const success = await deleteSite(id)
+
+    const storage = getStorage()
+    const success = await storage.deleteSite(id)
 
     if (!success) {
       return NextResponse.json({ error: "Site not found" }, { status: 404 })

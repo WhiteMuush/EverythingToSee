@@ -11,6 +11,7 @@ import Footer from "@/components/footer"
 import type { Site, Category } from "@/lib/types"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { getStorage } from "@/lib/storage"
 
 export default function Home() {
   const [sites, setSites] = useState<Site[]>([])
@@ -20,21 +21,34 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
   const [editingSite, setEditingSite] = useState<Site | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Fetch sites from API
+  // Fetch sites from API or localStorage
   const fetchSites = useCallback(async () => {
     try {
       setIsLoading(true)
-      const response = await fetch("/api/sites")
+      setError(null)
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch sites")
+      // Try to fetch from API first
+      try {
+        const response = await fetch("/api/sites")
+
+        if (response.ok) {
+          const data = await response.json()
+          setSites(data)
+          return
+        }
+      } catch (apiError) {
+        console.error("API error, falling back to localStorage:", apiError)
       }
 
-      const data = await response.json()
+      // Fallback to direct localStorage access if API fails
+      const storage = getStorage()
+      const data = await storage.getAllSites()
       setSites(data)
     } catch (error) {
       console.error("Error fetching sites:", error)
+      setError("Failed to load sites. Please try again later.")
       toast({
         title: "Error",
         description: "Failed to load sites. Please try again later.",
@@ -79,40 +93,68 @@ export default function Home() {
     }
   }, [searchQuery, sites])
 
+  // Handle adding or updating a site
   const handleAddSite = async (newSite: Omit<Site, "id">) => {
     try {
       if (editingSite) {
-        // Update existing site
-        const response = await fetch(`/api/sites/${editingSite.id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(newSite),
-        })
+        // Try API first
+        try {
+          const response = await fetch(`/api/sites/${editingSite.id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(newSite),
+          })
 
-        if (!response.ok) {
-          throw new Error("Failed to update site")
+          if (response.ok) {
+            toast({
+              title: "Success",
+              description: "Site updated successfully!",
+            })
+            fetchSites()
+            setIsModalOpen(false)
+            setEditingSite(null)
+            return
+          }
+        } catch (apiError) {
+          console.error("API error, falling back to localStorage:", apiError)
         }
 
+        // Fallback to localStorage
+        const storage = getStorage()
+        await storage.updateSite(editingSite.id, newSite)
         toast({
           title: "Success",
           description: "Site updated successfully!",
         })
       } else {
-        // Add new site
-        const response = await fetch("/api/sites", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(newSite),
-        })
+        // Try API first
+        try {
+          const response = await fetch("/api/sites", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(newSite),
+          })
 
-        if (!response.ok) {
-          throw new Error("Failed to add site")
+          if (response.ok) {
+            toast({
+              title: "Success",
+              description: "Site added successfully!",
+            })
+            fetchSites()
+            setIsModalOpen(false)
+            return
+          }
+        } catch (apiError) {
+          console.error("API error, falling back to localStorage:", apiError)
         }
 
+        // Fallback to localStorage
+        const storage = getStorage()
+        await storage.addSite(newSite)
         toast({
           title: "Success",
           description: "Site added successfully!",
@@ -133,15 +175,30 @@ export default function Home() {
     }
   }
 
+  // Handle deleting a site
   const handleDeleteSite = async (siteId: string) => {
     try {
-      const response = await fetch(`/api/sites/${siteId}`, {
-        method: "DELETE",
-      })
+      // Try API first
+      try {
+        const response = await fetch(`/api/sites/${siteId}`, {
+          method: "DELETE",
+        })
 
-      if (!response.ok) {
-        throw new Error("Failed to delete site")
+        if (response.ok) {
+          toast({
+            title: "Success",
+            description: "Site deleted successfully!",
+          })
+          fetchSites()
+          return
+        }
+      } catch (apiError) {
+        console.error("API error, falling back to localStorage:", apiError)
       }
+
+      // Fallback to localStorage
+      const storage = getStorage()
+      await storage.deleteSite(siteId)
 
       // Refresh the sites list
       fetchSites()
@@ -168,6 +225,24 @@ export default function Home() {
 
   // Get unique categories from sites
   const categories = Array.from(new Set(sites.map((site) => site.category)))
+
+  // Fallback UI for errors
+  if (error && !isLoading && sites.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white">
+        <Header onAddSite={() => openModal()} />
+        <main className="container mx-auto px-4 py-20 text-center">
+          <h2 className="text-2xl font-bold mb-4">Unable to load sites</h2>
+          <p className="text-gray-400 mb-8">{error}</p>
+          <button onClick={fetchSites} className="bg-[#ED4592] hover:bg-[#ED4592]/90 text-white px-6 py-2 rounded-md">
+            Try Again
+          </button>
+        </main>
+        <Footer />
+        <Toaster />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white">

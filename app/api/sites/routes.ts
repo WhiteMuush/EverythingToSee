@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server"
-import { getAllSites, addSite } from "@/lib/kv"
+import { getStorage } from "@/lib/storage"
 
 // GET handler - Return all sites
 export async function GET() {
   try {
-    const sites = await getAllSites()
+    const storage = getStorage()
+    const sites = await storage.getAllSites()
+
     return NextResponse.json(sites)
   } catch (error) {
     console.error("Error fetching sites:", error)
@@ -16,8 +18,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const newSite = await request.json()
-    const site = await addSite(newSite)
+    const storage = getStorage()
 
+    const site = await storage.addSite(newSite)
     return NextResponse.json(site, { status: 201 })
   } catch (error) {
     console.error("Error adding site:", error)
